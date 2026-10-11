@@ -1,0 +1,188 @@
+================================================================================
+ALGORITHM SPECIFICATION: EDGE-DEVICE LINGUISTIC PROCESSOR
+================================================================================
+DOCUMENT TYPE: Technical Algorithm Specification
+TARGET ENVIRONMENT: Mobile App (iOS/Android) / Web Extension (Browser)
+CONSTRAINTS: Zero Large Language Models (LLMs). Strict memory (<50MB) and CPU 
+limits. Must operate offline or with minimal API latency.
+
+================================================================================
+1. SYSTEM OVERVIEW & THEORETICAL FOUNDATIONS
+================================================================================
+
+This system processes spell checking, grammar checking, and translation using 
+only a base dictionary and high-dimensional mathematical transformations. It 
+replaces heavy neural networks with pure linear algebra, differential geometry, 
+measure theory, and statistical probability.
+
+1.1 Linguistic Mappings to Mathematical Spaces
+- Semantics (Meaning & Hierarchy): Mapped to Hyperbolic Geometry. Language is 
+  hierarchical (e.g., entity -> animal -> dog). Hyperbolic space (Poincaré ball) 
+  models tree-like structures with exponentially growing volume, allowing 
+  low-dimensional (10-20D) representation of deep semantic hierarchies.
+- Syntax (Grammar & Composition): Mapped to Geometric Algebra (Clifford Algebras). 
+  Words are multivectors. Grammar rules are geometric products and outer products 
+  that contract valid syntactic structures and reject invalid ones.
+- Pragmatics & Collocation (Word Context): Mapped to Information Geometry and 
+  Statistical Probability. Grammaticality is measured as the statistical 
+  "surprise" (KL Divergence) of a word sequence against a Markov probability 
+  manifold.
+
+================================================================================
+2. OFFLINE PRE-COMPUTATION PIPELINE (SERVER-SIDE)
+================================================================================
+
+These steps are performed once and the resulting binary matrices are shipped 
+to the edge device.
+
+2.1 Morphological & Statistical Dictionary Generation
+- Input: Raw dictionary text.
+- Process: 
+  1. Extract lemmas (root words) and morphological rules (affixes).
+  2. Calculate word frequencies using Maximum Likelihood Estimation (MLE) from 
+     a large corpus.
+  3. Apply Kneser-Ney smoothing to calculate transition probabilities for 
+     3-grams and 4-grams, handling unseen word combinations.
+- Output: A flattened binary file containing lemmas, frequencies, and 
+  statistical transition matrices (Markov chains).
+
+2.2 Hyperbolic Semantic Embedding (Linguistic Semantics)
+- Input: Dictionary lemmas and co-occurrence corpus.
+- Process: Train Poincaré embeddings. Instead of Euclidean Word2Vec, optimize 
+  vectors to lie strictly inside the Poincaré ball (||x|| < 1). 
+  Loss function minimizes the hyperbolic distance between co-occurring words:
+  L = -log( exp(-d_H(x,y)) / sum(exp(-d_H(x,z))) )
+  where d_H is the Poincaré distance metric.
+- Output: A quantized 8-bit matrix of shape [Vocabulary_Size, 16]. 
+  (16 dimensions in hyperbolic space equals ~300 dimensions in Euclidean space).
+
+2.3 Cross-Lingual Alignment via Optimal Transport (Translation)
+- Input: Source Language Hyperbolic Matrix (M_A) and Target Language Matrix (M_B). 
+  A small seed bilingual dictionary (e.g., 2,000 word pairs).
+- Process: Formulate translation as the Optimal Transport problem. Find the 
+  orthogonal mapping matrix W that minimizes the regularized Wasserstein 
+  distance (Earth Mover's Distance) between M_A and M_B.
+  Solve using the Sinkhorn-Knopp algorithm (iterative matrix scaling).
+- Output: A lightweight transformation matrix W of shape [16, 16].
+
+================================================================================
+3. RUNTIME ALGORITHM 1: SPELL CHECKING
+================================================================================
+
+Triggered on every keystroke or word completion.
+
+Input: Target word token (w).
+Step 3.1: Morphological Validation (Statistics)
+- Decompose (w) into (lemma + affixes) using a Finite State Transducer (FST).
+- Calculate the statistical probability P(w) = P(lemma) * P(affix | lemma).
+- If P(w) > threshold, the word is morphologically valid. Pass to grammar check.
+
+Step 3.2: Semantic Nearest-Neighbor Search (High-Dimensional Math)
+- If (w) is invalid, map (w) to a temporary vector v using a lightweight 
+  subword hashing trick (like FastText n-grams mapped to hyperbolic space).
+- Calculate the Poincaré distance between v and all valid lemmas in the 
+  dictionary matrix M:
+  d_H(v, x) = arcosh( 1 + 2 * (||v - x||^2) / ((1 - ||v||^2) * (1 - ||x||^2)) )
+- Optimization: Use an Approximate Nearest Neighbor (ANN) index (e.g., HNSW) 
+  built on the hyperbolic manifold to search only the top 5% of the vocabulary.
+
+Step 3.3: Candidate Ranking (Probability)
+- Rank the nearest neighbors by a combined score:
+  Score = (1 / d_H(v, x)) * P(x)
+  (Balances geometric closeness with statistical word frequency).
+- Output: Top 3 suggestions.
+
+================================================================================
+4. RUNTIME ALGORITHM 2: TRANSLATION
+================================================================================
+
+Triggered when the user requests translation of a word or short phrase.
+
+Input: Source word (w_s).
+Step 4.1: Vectorization
+- Retrieve the pre-computed hyperbolic vector v_s from the Source Matrix M_A.
+
+Step 4.2: Optimal Transport Mapping (Linear Algebra)
+- Apply the pre-computed Sinkhorn transformation matrix W:
+  v_t = v_s * W
+- Normalize v_t to ensure it remains inside the Target Poincaré ball 
+  (||v_t|| < 1) using a hyperbolic projection function.
+
+Step 4.3: Target Dictionary Lookup (Geometry)
+- Calculate the Poincaré distance between v_t and all vectors in the Target 
+  Matrix M_B.
+- Select the vector with the minimum distance.
+- Output: The corresponding target word.
+
+================================================================================
+5. RUNTIME ALGORITHM 3: GRAMMAR CHECKING
+================================================================================
+
+Triggered via debounce (1.5 seconds after typing stops) to save CPU.
+
+Input: Sequence of tokens [w_1, w_2, ..., w_n].
+Step 5.1: Part-of-Speech (POS) Tagging (Statistics)
+- Use the Viterbi algorithm on the pre-computed Markov transition matrices.
+- For each word, calculate the most likely sequence of POS tags that maximizes 
+  the joint probability: P(tags | words) = product( P(tag_i | tag_i-1) * P(w_i | tag_i) ).
+- Output: A sequence of POS vectors.
+
+Step 5.2: Syntactic Composition (Geometric Algebra)
+- Map each POS tag to a specific geometric algebra basis vector (multivector).
+  Example: Nouns are grade-1 vectors, Verbs are grade-2 bivectors.
+- Apply the geometric product (or outer product) sequentially:
+  M = v_1 * v_2 * ... * v_n
+- Calculate the magnitude (norm) of the resulting multivector ||M||.
+- Linguistic interpretation: If the syntax is valid, the geometric contraction 
+  yields a high-magnitude, stable multivector. If the syntax is invalid 
+  (e.g., Noun + Noun + Verb without a conjunction), the geometric product 
+  collapses or yields orthogonal components, resulting in ||M|| near zero.
+
+Step 5.3: Contextual Grammaticality Scoring (Information Geometry)
+- Treat the sentence as a probability distribution over the vocabulary.
+- Calculate the expected next-word distribution P_expected using the 3-gram 
+  Markov model.
+- Calculate the actual next-word distribution P_actual (which is a one-hot 
+  vector for the word the user actually typed).
+- Compute the Kullback-Leibler (KL) Divergence (the Fisher Information metric 
+  distance between the two distributions):
+  D_KL(P_actual || P_expected) = sum( P_actual(i) * log( P_actual(i) / P_expected(i) ) )
+- Linguistic interpretation: High KL Divergence means the user's word was 
+  highly "surprising" given the statistical context, indicating a grammar error.
+
+Step 5.4: Error Localization
+- Calculate the KL Divergence at every step i in the sentence.
+- The index i with the highest spike in D_KL is flagged as the grammar error.
+- Output: Underline the word at index i. Suggest corrections by finding words 
+  that minimize D_KL at that specific position.
+
+================================================================================
+6. EDGE-DEVICE OPTIMIZATION & COMPLEXITY ANALYSIS
+================================================================================
+
+6.1 Memory Footprint (Target: < 30 MB per language)
+- Hyperbolic Dictionary (16 dims, 8-bit quantized, 100k words): ~1.6 MB
+- Transformation Matrix W (16x16, 32-bit float): ~1 KB
+- Statistical N-gram Models (Kneser-Ney compressed): ~15 MB
+- Geometric Algebra Basis Tensors: ~2 MB
+- Total: Well within mobile browser/app limits.
+
+6.2 Computational Complexity
+- Spell Check Lookup: O(1) using SymSpell for exact matches; O(log N) using 
+  HNSW for semantic nearest-neighbor search.
+- Translation: O(D^2) where D=16. Matrix-vector multiplication takes < 1 
+  microsecond on mobile SIMD (ARM NEON).
+- Grammar Check (KL Divergence): O(V) where V is vocabulary size, but optimized 
+  to O(1) by only calculating the divergence for the specific word typed against 
+  its pre-fetched transition probabilities.
+
+6.3 Hardware Acceleration Mapping
+- Web Extension: Compile Rust core to WebAssembly (Wasm). Map the Poincaré 
+  distance calculations and Sinkhorn matrix scaling to WebGPU shaders.
+- Mobile App: Map geometric algebra tensor contractions and KL Divergence to 
+  Apple CoreML (Neural Engine) or Android NNAPI. Use memory-mapped files (mmap) 
+  for the dictionary to prevent RAM bloating.
+
+================================================================================
+END OF SPECIFICATION
+================================================================================
